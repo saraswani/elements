@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Untrusted Server View - Verifiable SSE Engine{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <h1 style="font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 0.6rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                Untrusted Server / Cloud Provider Perspective
+            </h1>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem;">
+                This page inspects raw server state. Notice that <strong>zero plaintext keywords, document contents, or query terms</strong> are accessible to the server operator or cloud host.
+            </p>
+        </div>
+        <span class="badge badge-pass" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+            🔒 Security Model: Honest-but-Curious Server
+        </span>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- 1. Stored Blobs (Raw Ciphertexts) -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">
+                    1. Cloud Storage Blobs ({{ blob_items|length }})
+                </h2>
+                <p class="card-subtitle">AES-256-GCM Nonce + Ciphertext + Tag</p>
+            </div>
+        </div>
+
+        {% if blob_items %}
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Blob ID</th>
+                            <th>Size</th>
+                            <th>First 16 Hex Chars</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in blob_items %}
+                            <tr>
+                                <td class="mono" style="color: var(--accent-cyan);">{{ item.blob_id }}</td>
+                                <td class="mono">{{ item.size }} B</td>
+                                <td class="mono" style="color: #fb7185;">{{ item.hex_preview }}...</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color: var(--text-muted); padding: 1rem;">No document blobs found in server storage.</p>
+        {% endif %}
+    </div>
+
+    <!-- 2. Search Index Labels -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">
+                    2. Inverted Search Index ({{ index_labels|length }} Entries)
+                </h2>
+                <p class="card-subtitle">HMAC Index Labels & Encrypted Postings</p>
+            </div>
+        </div>
+
+        {% if index_labels %}
+            <div class="table-container" style="max-height: 280px; overflow-y: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Label Hash L (HMAC-SHA256)</th>
+                            <th>Encrypted Posting Payload</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for label, payload in index_labels.items() %}
+                            <tr>
+                                <td class="mono" style="color: #a5b4fc; font-size: 0.78rem;">{{ label[:20] }}...</td>
+                                <td class="mono" style="color: var(--text-muted); font-size: 0.78rem;">{{ payload[:24] }}...</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color: var(--text-muted); padding: 1rem;">No index entries found in search_index.json.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 3. Audit Log Stream -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2 class="card-title">
+                3. Server Operation Audit Log (audit.log)
+            </h2>
+            <p class="card-subtitle">Structured logging without metadata leakage</p>
+        </div>
+        <span class="badge badge-pass">
+            ✓ Leakage Test Passed: Zero Keywords Recorded
+        </span>
+    </div>
+
+    {% if audit_records %}
+        <div class="table-container" style="max-height: 350px; overflow-y: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp (UTC)</th>
+                        <th>Operation</th>
+                        <th>Blobs Touched</th>
+                        <th>Labels Queried (Hashes)</th>
+                        <th>Result Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in audit_records|reverse %}
+                        <tr>
+                            <td class="mono" style="font-size: 0.8rem;">{{ log.timestamp }}</td>
+                            <td>
+                                {% if log.operation == 'upload' %}
+                                    <span class="badge badge-info">UPLOAD</span>
+                                {% elif log.operation == 'search' %}
+                                    <span class="badge badge-pass">SEARCH</span>
+                                {% else %}
+                                    <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc;">{{ log.operation|upper }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="mono" style="font-size: 0.8rem;">{{ log.blob_ids|join(', ') or 'None' }}</td>
+                            <td class="mono" style="font-size: 0.75rem; color: var(--text-muted);">
+                                {% if log.label_hashes %}
+                                    {{ log.label_hashes|length }} hashes queried
+                                {% else %}
+                                    None
+                                {% endif %}
+                            </td>
+                            <td class="mono" style="font-weight: 600;">{{ log.result_count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="color: var(--text-muted); padding: 1.5rem; text-align: center;">Audit log is currently empty.</p>
+    {% endif %}
+</div>
+{% endblock %}

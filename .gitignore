@@ -1,0 +1,17 @@
+# Encryption Master Key & Config Secrets
+master.key
+credentials.json
+token.json
+.env
+
+# Search Index & Local Storage Data
+search_index.json
+local_store/
+audit.log
+
+# Python cache & virtual environments
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.env.local

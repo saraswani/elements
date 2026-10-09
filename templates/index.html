@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Verifiable SSE Engine{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+    <!-- Left Column: Document Encryption & Upload -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Encrypt & Upload Document
+                </h2>
+                <p class="card-subtitle">Select a text file to generate AES-256-GCM ciphertext preview</p>
+            </div>
+        </div>
+
+        <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" id="upload-form">
+            <div class="form-group">
+                <label class="form-label">Select Document File (PDF, TXT, CSV, JSON, MD)</label>
+                <input type="file" name="file" id="file-input" class="form-input" accept=".pdf,.txt,.json,.md,.csv,.log,.doc,.docx" required>
+            </div>
+
+            <!-- Encrypted Preview Panel -->
+            <div id="preview-panel" style="display: none; background: rgba(10, 13, 20, 0.7); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: #a5b4fc; display: flex; align-items: center; gap: 0.4rem;">
+                        🔐 Encrypted Preview
+                    </span>
+                    <span class="badge badge-pass" style="font-size: 0.75rem;">Zero Plaintext Exposed</span>
+                </div>
+
+                <div style="font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div>
+                        <span style="color: var(--text-secondary);">Total Blob Size:</span>
+                        <strong id="preview-size" class="mono" style="color: var(--text-primary); margin-left: 0.4rem;"></strong>
+                    </div>
+
+                    <div>
+                        <span style="color: var(--text-secondary);">AES-GCM Nonce (12 Bytes Hex):</span>
+                        <div id="preview-nonce" class="mono" style="color: var(--accent-cyan); word-break: break-all; background: rgba(0, 0, 0, 0.4); padding: 0.4rem 0.6rem; border-radius: 6px; margin-top: 0.2rem; font-size: 0.8rem;"></div>
+                    </div>
+
+                    <div>
+                        <span style="color: var(--text-secondary);">First 64 Hex Chars of Ciphertext:</span>
+                        <div id="preview-ciphertext" class="mono" style="color: #fb7185; word-break: break-all; background: rgba(0, 0, 0, 0.4); padding: 0.4rem 0.6rem; border-radius: 6px; margin-top: 0.2rem; font-size: 0.8rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Single Click Upload Button / Connect Button -->
+            {% if use_local_storage %}
+                <button type="submit" class="btn btn-primary" id="upload-btn" style="width: 100%; display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    Send to Local Storage
+                </button>
+            {% else %}
+                {% if is_gdrive_connected %}
+                    <button type="submit" class="btn btn-primary" id="upload-btn" style="width: 100%; display: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Send to Google Drive
+                    </button>
+                {% else %}
+                    <a href="{{ url_for('connect_google') }}" class="btn btn-success" id="connect-btn" style="width: 100%; display: none; text-decoration: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                        Connect Google Drive
+                    </a>
+                {% endif %}
+            {% endif %}
+
+        </form>
+    </div>
+
+    <!-- Right Column: Boolean SSE Keyword Search -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Boolean SSE Search
+                </h2>
+                <p class="card-subtitle">Zero-knowledge search over encrypted cloud storage</p>
+            </div>
+        </div>
+
+        <form action="{{ url_for('index') }}" method="GET">
+            <div class="form-group">
+                <label class="form-label">Boolean Search Query</label>
+                <input type="text" name="q" id="query-input" class="form-input mono" value="{{ query_str }}" placeholder="e.g., invoice AND (tax OR gst) NOT draft" required>
+                
+                <div class="syntax-bar">
+                    <span class="syntax-badge" onclick="appendSyntax('AND')">AND</span>
+                    <span class="syntax-badge" onclick="appendSyntax('OR')">OR</span>
+                    <span class="syntax-badge" onclick="appendSyntax('NOT')">NOT</span>
+                    <span class="syntax-badge" onclick="appendSyntax('(')">(</span>
+                    <span class="syntax-badge" onclick="appendSyntax(')')">)</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: auto;">Click syntax helper</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    Search Encrypted Vault
+                </button>
+                {% if query_str %}
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- Sample Quick Queries -->
+        <div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-color);">
+            <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Try sample queries:</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                <a href="?q=invoice+AND+tax" class="syntax-badge" style="text-decoration: none; color: #a5b4fc;">invoice AND tax</a>
+                <a href="?q=invoice+AND+(tax+OR+gst)+NOT+draft" class="syntax-badge" style="text-decoration: none; color: #a5b4fc;">invoice AND (tax OR gst) NOT draft</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Results Section -->
+{% if query_str %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <div>
+            <h2 class="card-title">
+                Search Results for <span class="mono" style="color: var(--accent-cyan);">'{{ query_str }}'</span>
+            </h2>
+            <p class="card-subtitle">Found {{ results|length }} matching documents in {{ execution_time_ms }} ms &bull; {{ queried_labels|length }} index trapdoor labels probed</p>
+        </div>
+        <a href="/search?q={{ query_str|urlencode }}" target="_blank" class="btn btn-secondary btn-sm">
+            View Raw JSON API
+        </a>
+    </div>
+
+    {% if results %}
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            {% for doc in results %}
+                <div style="background: rgba(10, 13, 20, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.6rem;">
+                        <div>
+                            <span class="mono" style="font-weight: 700; color: #a5b4fc;">📄 {{ doc.doc_id }}</span>
+                            {% if doc.filename %}
+                                <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">({{ doc.filename }})</span>
+                            {% endif %}
+                        </div>
+                        <div style="display: flex; gap: 0.4rem; align-items: center;">
+                            <a href="{{ url_for('verify_document', doc_id=doc.doc_id) }}" class="btn btn-secondary btn-sm">
+                                Verify Cryptographic Proof
+                            </a>
+                            <span class="badge badge-pass">AES-GCM Tag Verified</span>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(0, 0, 0, 0.4); border-left: 3px solid var(--accent-indigo); padding: 0.75rem 1rem; border-radius: 6px; font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.5; color: #e2e8f0; white-space: pre-wrap;">{{ doc.decrypted_text }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            No matching documents found for this query.
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Stored Documents Vault Table -->
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h2 class="card-title">
+                Stored Ciphertext Vault ({{ stored_files|length }} Blobs)
+            </h2>
+            <p class="card-subtitle">Encrypted files stored in {{ active_provider_name }}</p>
+        </div>
+    </div>
+
+    {% if stored_files %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Document ID / Blob Name</th>
+                        <th>Ciphertext Size</th>
+                        <th>Last Modified</th>
+                        <th>Action / Verification</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in stored_files %}
+                        <tr>
+                            <td class="mono" style="color: var(--accent-cyan); font-weight: 600;">{{ file.filename }}</td>
+                            <td class="mono">{{ file.size }} bytes</td>
+                            <td>{{ file.updated_at }}</td>
+                            <td>
+                                <a href="{{ url_for('verify_document', doc_id=file.filename) }}" class="btn btn-secondary btn-sm">
+                                    🔍 Verify Cryptographic Proof
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+            No document blobs currently in vault. Use the form above to encrypt and upload your first document.
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function appendSyntax(symbol) {
+    const input = document.getElementById('query-input');
+    const val = input.value;
+    if (val && !val.endsWith(' ')) {
+        input.value = val + ' ' + symbol + ' ';
+    } else {
+        input.value = val + symbol + ' ';
+    }
+    input.focus();
+}
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const previewPanel = document.getElementById('preview-panel');
+    const uploadBtn = document.getElementById('upload-btn');
+    const connectBtn = document.getElementById('connect-btn');
+
+    if (!file) {
+        previewPanel.style.display = 'none';
+        if (uploadBtn) uploadBtn.style.display = 'none';
+        if (connectBtn) connectBtn.style.display = 'none';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/preview-encrypt', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('preview-size').innerText = data.blob_size + ' bytes';
+            document.getElementById('preview-nonce').innerText = data.nonce_hex;
+            document.getElementById('preview-ciphertext').innerText = data.ciphertext_preview_64 + '...';
+
+            previewPanel.style.display = 'block';
+            if (uploadBtn) uploadBtn.style.display = 'inline-flex';
+            if (connectBtn) connectBtn.style.display = 'inline-flex';
+        } else {
+            alert('Error generating encrypted preview: ' + data.message);
+        }
+    })
+    .catch(err => {
+        console.error('Preview error:', err);
+    });
+});
+</script>
+{% endblock %}

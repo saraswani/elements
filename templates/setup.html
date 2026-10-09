@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Setup & Credentials - Verifiable SSE Engine{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 1.5rem;">
+        <h1 style="font-size: 1.6rem; font-weight: 700;">System Setup & Storage Provider Credentials</h1>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">
+            Configure cloud storage API credentials and select the primary storage provider.
+        </p>
+    </div>
+
+    <!-- Mandatory Security Warning Box -->
+    <div class="warning-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <div>
+            <strong>Security Notice:</strong> Pasting secrets into a web page is for local demo use only. In production, use a secret manager.
+        </div>
+    </div>
+
+    <div class="card">
+        <form action="{{ url_for('setup') }}" method="POST" enctype="multipart/form-data">
+            
+            <!-- 1. Google Drive API Key -->
+            <div class="form-group">
+                <label class="form-label">1. Google Drive API Key (Optional)</label>
+                <input type="password" name="gdrive_api_key" class="form-input" 
+                       placeholder="Enter Google Drive API key" 
+                       value="{% if config.gdrive_api_key_masked %}{{ config.gdrive_api_key_masked }}{% endif %}">
+                <span style="font-size: 0.78rem; color: var(--text-muted);">
+                    Currently saved: {{ config.gdrive_api_key_masked or 'None' }}
+                </span>
+            </div>
+
+            <!-- 2. OAuth Client Secret (JSON Textarea OR File Upload) -->
+            <div class="form-group" style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <label class="form-label">2. Google OAuth Client Credentials (credentials.json)</label>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                    Paste the OAuth client secrets JSON content below <strong>OR</strong> upload your <code>credentials.json</code> file.
+                </p>
+                
+                <textarea name="oauth_json_text" class="form-textarea" placeholder='{"installed": {"client_id": "...", "client_secret": "...", "redirect_uris": ["http://localhost:5000/oauth2callback"]}}'></textarea>
+                
+                <div style="margin-top: 0.5rem;">
+                    <label class="form-label" style="font-size: 0.8rem;">Or Upload credentials.json File:</label>
+                    <input type="file" name="credentials_file" class="form-input" accept=".json">
+                </div>
+                
+                <div style="margin-top: 0.4rem;">
+                    {% if config.has_credentials_json %}
+                        <span class="badge badge-pass">✓ credentials.json configured in project root</span>
+                    {% else %}
+                        <span class="badge badge-info">credentials.json not present</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 3. OneDrive Credentials (Optional) -->
+            <div class="form-group" style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <label class="form-label">3. OneDrive Credentials (Optional)</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.8rem;">Client ID</label>
+                        <input type="text" name="onedrive_client_id" class="form-input" 
+                               placeholder="OneDrive Client ID" 
+                               value="{{ config.onedrive_client_id_masked }}">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.8rem;">Client Secret</label>
+                        <input type="password" name="onedrive_client_secret" class="form-input" 
+                               placeholder="OneDrive Client Secret" 
+                               value="{{ config.onedrive_client_secret_masked }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Storage Provider Choice -->
+            <div class="form-group" style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <label class="form-label">4. Storage Choice</label>
+                <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
+                        <input type="radio" name="storage_choice" value="local" {% if config.storage_choice == 'local' or config.use_local_storage %}checked{% endif %}>
+                        <span><strong>Local Storage</strong> (./local_store/ - No cloud login required, default)</span>
+                    </label>
+
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; {% if not config.has_credentials_json %}opacity: 0.6;{% endif %}">
+                        <input type="radio" name="storage_choice" value="gdrive" {% if config.storage_choice == 'gdrive' and not config.use_local_storage %}checked{% endif %} {% if not config.has_credentials_json %}disabled{% endif %}>
+                        <span><strong>Google Drive</strong> {% if not config.has_credentials_json %}(Requires credentials.json){% endif %}</span>
+                    </label>
+
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; {% if not config.onedrive_configured %}opacity: 0.6;{% endif %}">
+                        <input type="radio" name="storage_choice" value="onedrive" {% if config.storage_choice == 'onedrive' %}checked{% endif %} {% if not config.onedrive_configured %}disabled{% endif %}>
+                        <span><strong>OneDrive</strong> {% if not config.onedrive_configured %}(Disabled - Not configured){% endif %}</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Button & Connect Google Drive Button -->
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    Save Configuration
+                </button>
+
+                {% if config.has_credentials_json %}
+                    <a href="{{ url_for('connect_google') }}" class="btn btn-success">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                        Connect Google Drive
+                    </a>
+                {% endif %}
+            </div>
+
+        </form>
+    </div>
+</div>
+{% endblock %}
